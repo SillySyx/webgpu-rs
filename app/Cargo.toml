@@ -1,0 +1,9 @@
+[package]
+name = "app"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+engine = { path = "../engine" }
+winit = "0.25"
+pollster = "0.2"
