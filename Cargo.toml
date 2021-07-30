@@ -1,5 +1,10 @@
-[workspace]
-members = [
-    "engine",
-    "app"
-]
+[package]
+name = "webgpu-rs"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+async-std = { version = "1", features = ["attributes"] }
+winit = "0.25"
+cgmath = "0.18"
+wgpu = "0.9"
