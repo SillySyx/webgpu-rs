@@ -1,4 +1,3 @@
-use wgpu::{Instance, BackendBit, RequestAdapterOptions, PowerPreference, DeviceDescriptor, Features, Limits, TextureUsage, PresentMode, SwapChainDescriptor, CommandEncoderDescriptor, RenderPassDescriptor};
 use winit::dpi::PhysicalSize;
 use winit::window::WindowBuilder;
 use winit::event_loop::{EventLoop, ControlFlow};
@@ -7,18 +6,20 @@ use winit::event::{Event, WindowEvent, KeyboardInput, ElementState, VirtualKeyCo
 #[async_std::main]
 async fn main() {
     let event_loop = EventLoop::new();
-    let window = match WindowBuilder::new().build(&event_loop) {
+
+    let window = match WindowBuilder::new()
+        .with_title("Cube example")
+        .with_inner_size(PhysicalSize::new(1980, 1080))
+        .build(&event_loop) {
         Ok(window) => window,
         Err(_) => panic!("No window created!"),
     };
-    window.set_title("Camera example");
-    window.set_inner_size(PhysicalSize::new(1980, 1080));
 
-    let instance = Instance::new(BackendBit::PRIMARY);
+    let instance = wgpu::Instance::new(wgpu::BackendBit::PRIMARY);
     let surface = unsafe { instance.create_surface(&window) };
 
-    let adapter_options = RequestAdapterOptions {
-        power_preference: PowerPreference::default(),
+    let adapter_options = wgpu::RequestAdapterOptions {
+        power_preference: wgpu::PowerPreference::default(),
         compatible_surface: Some(&surface),
     };
     let adapter = match instance.request_adapter(&adapter_options).await {
@@ -26,9 +27,9 @@ async fn main() {
         None => panic!("No adapter found!"),
     };
 
-    let device_descriptor = DeviceDescriptor {
-        features: Features::empty(),
-        limits: Limits::default(),
+    let device_descriptor = wgpu::DeviceDescriptor {
+        features: wgpu::Features::empty(),
+        limits: wgpu::Limits::default(),
         label: None,
     };
     let trace_path = None;
@@ -37,13 +38,13 @@ async fn main() {
         Err(_) => panic!("Failed to create device and queue"),
     };
 
-    let mut size = window.inner_size();
-    let mut swap_chain_descriptor = SwapChainDescriptor {
-        usage: TextureUsage::RENDER_ATTACHMENT,
+    let size = window.inner_size();
+    let mut swap_chain_descriptor = wgpu::SwapChainDescriptor {
+        usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
         format: adapter.get_swap_chain_preferred_format(&surface).unwrap(),
         width: size.width,
         height: size.height,
-        present_mode: PresentMode::Fifo,
+        present_mode: wgpu::PresentMode::Fifo,
     };
     let mut swap_chain = device.create_swap_chain(&surface, &swap_chain_descriptor);
 
@@ -61,6 +62,16 @@ async fn main() {
     };
     let render_pipeline_layout = device.create_pipeline_layout(&pipeline_layout_descriptor);
 
+    let fragment_state = wgpu::FragmentState { // 3.
+        module: &shader_module,
+        entry_point: "main",
+        targets: &[wgpu::ColorTargetState { // 4.
+            format: swap_chain_descriptor.format,
+            blend: Some(wgpu::BlendState::REPLACE),
+            write_mask: wgpu::ColorWrite::ALL,
+        }],
+    };
+
     let render_pipeline_descriptor = wgpu::RenderPipelineDescriptor {
         label: Some("Render Pipeline"),
         layout: Some(&render_pipeline_layout),
@@ -69,15 +80,7 @@ async fn main() {
             entry_point: "main", // 1.
             buffers: &[], // 2.
         },
-        fragment: Some(wgpu::FragmentState { // 3.
-            module: &shader_module,
-            entry_point: "main",
-            targets: &[wgpu::ColorTargetState { // 4.
-                format: swap_chain_descriptor.format,
-                blend: Some(wgpu::BlendState::REPLACE),
-                write_mask: wgpu::ColorWrite::ALL,
-            }],
-        }),
+        fragment: Some(fragment_state),
         primitive: wgpu::PrimitiveState {
             topology: wgpu::PrimitiveTopology::TriangleList, // 1.
             strip_index_format: None,
@@ -110,22 +113,24 @@ async fn main() {
                     WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
                     WindowEvent::KeyboardInput { input, .. } => {
                         match input {
-                            KeyboardInput {
-                                state: ElementState::Pressed,
-                                virtual_keycode: Some(VirtualKeyCode::Escape),
-                                ..
-                            } => *control_flow = ControlFlow::Exit,
+                            KeyboardInput { state: ElementState::Pressed, virtual_keycode: Some(VirtualKeyCode::Escape), .. } => *control_flow = ControlFlow::Exit,
+                            KeyboardInput { state: ElementState::Pressed, virtual_keycode: Some(VirtualKeyCode::F1), .. } => {
+                                window.set_fullscreen(Some(winit::window::Fullscreen::Borderless(None)));
+                            }
+                            KeyboardInput { state: ElementState::Pressed, virtual_keycode: Some(VirtualKeyCode::F2), .. } => {
+                                window.set_fullscreen(None);
+                            }
                             _ => {}
                         }
                     },
                     WindowEvent::Resized(physical_size) => {
-                        size = *physical_size;
+                        let size = *physical_size;
                         swap_chain_descriptor.width = size.width;
                         swap_chain_descriptor.height = size.height;
                         swap_chain = device.create_swap_chain(&surface, &swap_chain_descriptor);
                     },
                     WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-                        size = **new_inner_size;
+                        let size = **new_inner_size;
                         swap_chain_descriptor.width = size.width;
                         swap_chain_descriptor.height = size.height;
                         swap_chain = device.create_swap_chain(&surface, &swap_chain_descriptor);
@@ -136,40 +141,48 @@ async fn main() {
             Event::RedrawRequested(_) => {
                 let frame = match swap_chain.get_current_frame() {
                     Ok(frame) => frame,
+                    Err(wgpu::SwapChainError::Lost) => {
+                        swap_chain = device.create_swap_chain(&surface, &swap_chain_descriptor);
+                        swap_chain.get_current_frame().unwrap()
+                    },
+                    Err(wgpu::SwapChainError::Outdated) => {
+                        swap_chain = device.create_swap_chain(&surface, &swap_chain_descriptor);
+                        swap_chain.get_current_frame().unwrap()
+                    },
                     Err(_) => panic!("failed to get frame"),
                 };
 
-                let command_encoder_descriptor = CommandEncoderDescriptor {
+                let command_encoder_descriptor = wgpu::CommandEncoderDescriptor {
                     label: Some("Render Encoder"),
                 };
                 let mut encoder = device.create_command_encoder(&command_encoder_descriptor);
-                
-                let render_pass_descriptor = RenderPassDescriptor {
-                    label: Some("Render Pass"),
-                    color_attachments: &[
-                        wgpu::RenderPassColorAttachment {
-                            view: &frame.output.view,
-                            resolve_target: None,
-                            ops: wgpu::Operations {
-                                load: wgpu::LoadOp::Clear(wgpu::Color {
-                                    r: 0.1,
-                                    g: 0.2,
-                                    b: 0.3,
-                                    a: 1.0,
-                                }),
-                                store: true,
+                {
+                    let render_pass_descriptor = wgpu::RenderPassDescriptor {
+                        label: Some("Render Pass"),
+                        color_attachments: &[
+                            wgpu::RenderPassColorAttachment {
+                                view: &frame.output.view,
+                                resolve_target: None,
+                                ops: wgpu::Operations {
+                                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                                        r: 0.1,
+                                        g: 0.2,
+                                        b: 0.3,
+                                        a: 1.0,
+                                    }),
+                                    store: true,
+                                }
                             }
-                        }
-                    ],
-                    depth_stencil_attachment: None,
-                };
-                let mut render_pass = encoder.begin_render_pass(&render_pass_descriptor);
+                        ],
+                        depth_stencil_attachment: None,
+                    };
+                    let mut render_pass = encoder.begin_render_pass(&render_pass_descriptor);
 
-                render_pass.set_pipeline(&render_pipeline);
-                render_pass.draw(0..3, 0..1);
+                    render_pass.set_pipeline(&render_pipeline);
+                    render_pass.draw(0..3, 0..1);
+                }
 
                 let command_buffer = encoder.finish();
-
                 queue.submit(std::iter::once(command_buffer));
             },
             Event::MainEventsCleared => {
