@@ -7,6 +7,8 @@ use winit::event::{Event, WindowEvent, VirtualKeyCode};
 
 #[async_std::main]
 async fn main() -> Result<(), Box<dyn Error>> {
+    env_logger::init();
+    
     let event_loop = EventLoop::new();
 
     let window = match WindowBuilder::new()

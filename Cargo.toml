@@ -5,6 +5,7 @@ edition = "2018"
 
 [dependencies]
 async-std = { version = "1", features = ["attributes"] }
+env_logger = "0.8"
 winit = "0.25"
 cgmath = "0.18"
 wgpu = "0.9"
