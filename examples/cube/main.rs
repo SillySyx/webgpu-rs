@@ -1,213 +1,257 @@
-// mod vertex;
 use std::error::Error;
+use webgpu::inputs::Keyboard;
+use winit::{
+    dpi::PhysicalSize, 
+    event::{Event, VirtualKeyCode, WindowEvent}, 
+    event_loop::{ControlFlow, EventLoop}, 
+    window::WindowBuilder
+};
+use wgpu::util::DeviceExt;
 
-use webgpu::window::Window;
-
-// use wgpu::util::DeviceExt;
-
-// use vertex::Vertex;
-
-
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+struct Vertex {
+    pub position: [f32; 3],
+    pub color: [f32; 3],
+}
 
 #[async_std::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let window = Window::new()?;
+    let event_loop = EventLoop::new();
 
-    {
-        let mut systems = webgpu::ecs::REGISTRY.systems.borrow_mut();
-        systems.register_system(webgpu::systems::Keyboard::new());
-    }
-    
+    let window = match WindowBuilder::new()
+        .with_title("Cube example")
+        .with_inner_size(PhysicalSize::new(1980, 1080))
+        .build(&event_loop) {
+        Ok(window) => window,
+        Err(_) => panic!("No window created!"),
+    };
+    let mut keyboard = Keyboard::new();
 
-    // let instance = wgpu::Instance::new(wgpu::BackendBit::PRIMARY);
-    // let surface = unsafe { instance.create_surface(window.window_handle()) };
+    let instance = wgpu::Instance::new(wgpu::BackendBit::PRIMARY);
+    let surface = unsafe { instance.create_surface(&window) };
 
-    // let adapter_options = wgpu::RequestAdapterOptions {
-    //     power_preference: wgpu::PowerPreference::default(),
-    //     compatible_surface: Some(&surface),
-    // };
-    // let adapter = match instance.request_adapter(&adapter_options).await {
-    //     Some(adapter) => adapter,
-    //     None => panic!("No adapter found!"),
-    // };
+    let adapter_options = wgpu::RequestAdapterOptions {
+        power_preference: wgpu::PowerPreference::default(),
+        compatible_surface: Some(&surface),
+    };
+    let adapter = match instance.request_adapter(&adapter_options).await {
+        Some(adapter) => adapter,
+        None => panic!("No adapter found!"),
+    };
 
-    // let device_descriptor = wgpu::DeviceDescriptor {
-    //     features: wgpu::Features::empty(),
-    //     limits: wgpu::Limits::default(),
-    //     label: None,
-    // };
-    // let trace_path = None;
-    // let (device, queue) = match adapter.request_device(&device_descriptor, trace_path).await {
-    //     Ok((device, queue)) => (device, queue),
-    //     Err(_) => panic!("Failed to create device and queue"),
-    // };
+    let device_descriptor = wgpu::DeviceDescriptor {
+        features: wgpu::Features::empty(),
+        limits: wgpu::Limits::default(),
+        label: None,
+    };
+    let trace_path = None;
+    let (device, queue) = match adapter.request_device(&device_descriptor, trace_path).await {
+        Ok((device, queue)) => (device, queue),
+        Err(_) => panic!("Failed to create device and queue"),
+    };
 
-    // let size = window.size();
-    // let mut swap_chain_descriptor = wgpu::SwapChainDescriptor {
-    //     usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
-    //     format: adapter.get_swap_chain_preferred_format(&surface).unwrap(),
-    //     width: size.width,
-    //     height: size.height,
-    //     present_mode: wgpu::PresentMode::Fifo,
-    // };
-    // let mut swap_chain = device.create_swap_chain(&surface, &swap_chain_descriptor);
+    let size = window.inner_size();
+    let mut swap_chain_descriptor = wgpu::SwapChainDescriptor {
+        usage: wgpu::TextureUsage::RENDER_ATTACHMENT,
+        format: adapter.get_swap_chain_preferred_format(&surface).unwrap(),
+        width: size.width,
+        height: size.height,
+        present_mode: wgpu::PresentMode::Fifo,
+    };
+    let mut swap_chain = device.create_swap_chain(&surface, &swap_chain_descriptor);
 
-    // let shader_module_descriptor = wgpu::ShaderModuleDescriptor {
-    //     label: Some("Shader"),
-    //     flags: wgpu::ShaderFlags::all(),
-    //     source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
-    // };
-    // let shader_module = device.create_shader_module(&shader_module_descriptor);
+    let shader_module_descriptor = wgpu::ShaderModuleDescriptor {
+        label: Some("Shader"),
+        flags: wgpu::ShaderFlags::all(),
+        source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+    };
+    let shader_module = device.create_shader_module(&shader_module_descriptor);
 
-    // let pipeline_layout_descriptor = wgpu::PipelineLayoutDescriptor {
-    //     label: Some("Render Pipeline Layout"),
-    //     bind_group_layouts: &[],
-    //     push_constant_ranges: &[],
-    // };
-    // let render_pipeline_layout = device.create_pipeline_layout(&pipeline_layout_descriptor);
+    let pipeline_layout_descriptor = wgpu::PipelineLayoutDescriptor {
+        label: Some("Render Pipeline Layout"),
+        bind_group_layouts: &[],
+        push_constant_ranges: &[],
+    };
+    let render_pipeline_layout = device.create_pipeline_layout(&pipeline_layout_descriptor);
 
-    // let verticies = vec![
-    //     Vertex { position: [1.0, 2.0, 3.0], color: [4.0, 5.0, 6.0] },
-    // ];
-    // let vertex_buffer_descriptor = wgpu::util::BufferInitDescriptor {
-    //     label: Some("Vertex Buffer"),
-    //     contents: bytemuck::cast_slice(&verticies),
-    //     usage: wgpu::BufferUsage::VERTEX,
-    // };
-    // let vertex_buffer = device.create_buffer_init(&vertex_buffer_descriptor);
+    let verticies = vec![
+        Vertex { position: [-0.0868241, 0.49240386, 0.0], color: [0.5, 0.0, 0.5] }, 
+        Vertex { position: [-0.49513406, 0.06958647, 0.0], color: [0.5, 0.0, 0.5] }, 
+        Vertex { position: [-0.21918549, -0.44939706, 0.0], color: [0.5, 0.0, 0.5] }, 
+        Vertex { position: [0.35966998, -0.3473291, 0.0], color: [0.5, 0.0, 0.5] }, 
+        Vertex { position: [0.44147372, 0.2347359, 0.0],color: [0.5, 0.0, 0.5] }, 
+    ];
+    let vertex_buffer_descriptor = wgpu::util::BufferInitDescriptor {
+        label: Some("Vertex Buffer"),
+        contents: bytemuck::cast_slice(&verticies),
+        usage: wgpu::BufferUsage::VERTEX,
+    };
+    let vertex_buffer = device.create_buffer_init(&vertex_buffer_descriptor);
+    let vertex_buffer_layout = wgpu::VertexBufferLayout {
+        array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress, 
+        step_mode: wgpu::InputStepMode::Vertex, 
+        attributes: &[ 
+            wgpu::VertexAttribute {
+                offset: 0, 
+                shader_location: 0, 
+                format: wgpu::VertexFormat::Float32x3, // 6.
+            },
+            wgpu::VertexAttribute {
+                offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
+                shader_location: 1,
+                format: wgpu::VertexFormat::Float32x3,
+            }
+        ],
+    };
 
-    // let fragment_state = wgpu::FragmentState { // 3.
-    //     module: &shader_module,
-    //     entry_point: "main",
-    //     targets: &[wgpu::ColorTargetState { // 4.
-    //         format: swap_chain_descriptor.format,
-    //         blend: Some(wgpu::BlendState::REPLACE),
-    //         write_mask: wgpu::ColorWrite::ALL,
-    //     }],
-    // };
-    // let render_pipeline_descriptor = wgpu::RenderPipelineDescriptor {
-    //     label: Some("Render Pipeline"),
-    //     layout: Some(&render_pipeline_layout),
-    //     vertex: wgpu::VertexState {
-    //         module: &shader_module,
-    //         entry_point: "main", // 1.
-    //         buffers: &[], // 2.
-    //     },
-    //     fragment: Some(fragment_state),
-    //     primitive: wgpu::PrimitiveState {
-    //         topology: wgpu::PrimitiveTopology::TriangleList, // 1.
-    //         strip_index_format: None,
-    //         front_face: wgpu::FrontFace::Ccw, // 2.
-    //         cull_mode: Some(wgpu::Face::Back),
-    //         // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
-    //         polygon_mode: wgpu::PolygonMode::Fill,
-    //         // Requires Features::DEPTH_CLAMPING
-    //         clamp_depth: false,
-    //         // Requires Features::CONSERVATIVE_RASTERIZATION
-    //         conservative: false,
-    //     },
-    //     depth_stencil: None, // 1.
-    //     multisample: wgpu::MultisampleState {
-    //         count: 1, // 2.
-    //         mask: !0, // 3.
-    //         alpha_to_coverage_enabled: false, // 4.
-    //     },
-    // };
-    // let render_pipeline = device.create_render_pipeline(&render_pipeline_descriptor);
+    let indices: Vec<u16> = vec![
+        0, 1, 4,
+        1, 2, 4,
+        2, 3, 4,
+        0,
+    ];
+    let index_buffer_descriptor = wgpu::util::BufferInitDescriptor {
+        label: Some("Index Buffer"),
+        contents: bytemuck::cast_slice(&indices),
+        usage: wgpu::BufferUsage::INDEX,
+    };
+    let index_buffer = device.create_buffer_init(&index_buffer_descriptor);
+    let num_indices = indices.len() as u32;
 
-    window.run();
+    let fragment_state = wgpu::FragmentState {
+        module: &shader_module,
+        entry_point: "main",
+        targets: &[wgpu::ColorTargetState {
+            format: swap_chain_descriptor.format,
+            blend: Some(wgpu::BlendState::REPLACE),
+            write_mask: wgpu::ColorWrite::ALL,
+        }],
+    };
+    let render_pipeline_descriptor = wgpu::RenderPipelineDescriptor {
+        label: Some("Render Pipeline"),
+        layout: Some(&render_pipeline_layout),
+        vertex: wgpu::VertexState {
+            module: &shader_module,
+            entry_point: "main",
+            buffers: &[
+                vertex_buffer_layout,
+            ],
+        },
+        fragment: Some(fragment_state),
+        primitive: wgpu::PrimitiveState {
+            topology: wgpu::PrimitiveTopology::TriangleList,
+            strip_index_format: None,
+            front_face: wgpu::FrontFace::Ccw,
+            cull_mode: Some(wgpu::Face::Back),
+            polygon_mode: wgpu::PolygonMode::Fill,
+            clamp_depth: false,
+            conservative: false,
+        },
+        depth_stencil: None, 
+        multisample: wgpu::MultisampleState {
+            count: 1,
+            mask: !0,
+            alpha_to_coverage_enabled: false,
+        },
+    };
+    let render_pipeline = device.create_render_pipeline(&render_pipeline_descriptor);
 
-    // event_loop.run(move |event, _, control_flow| {
-    //     match event {
-    //         Event::WindowEvent { ref event, window_id } => {
-    //             if window_id != window.id() {
-    //                 return;
-    //             }
+    event_loop.run(move |event, _, control_flow| {
+        let mut update = || {
+            if keyboard.is_key_pressed(VirtualKeyCode::Escape) {
+                *control_flow = ControlFlow::Exit;
+            }
 
-    //             match event {
-    //                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-    //                 WindowEvent::KeyboardInput { input, .. } => {
-    //                     match input {
-    //                         KeyboardInput { state: ElementState::Pressed, virtual_keycode: Some(VirtualKeyCode::Escape), .. } => *control_flow = ControlFlow::Exit,
-    //                         KeyboardInput { state: ElementState::Pressed, virtual_keycode: Some(VirtualKeyCode::F1), .. } => {
-    //                             window.set_fullscreen(Some(winit::window::Fullscreen::Borderless(None)));
-    //                         }
-    //                         KeyboardInput { state: ElementState::Pressed, virtual_keycode: Some(VirtualKeyCode::F2), .. } => {
-    //                             window.set_fullscreen(None);
-    //                         }
-    //                         _ => {}
-    //                     }
-    //                 },
-    //                 WindowEvent::Resized(physical_size) => {
-    //                     let size = *physical_size;
-    //                     swap_chain_descriptor.width = size.width;
-    //                     swap_chain_descriptor.height = size.height;
-    //                     swap_chain = device.create_swap_chain(&surface, &swap_chain_descriptor);
-    //                 },
-    //                 WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
-    //                     let size = **new_inner_size;
-    //                     swap_chain_descriptor.width = size.width;
-    //                     swap_chain_descriptor.height = size.height;
-    //                     swap_chain = device.create_swap_chain(&surface, &swap_chain_descriptor);
-    //                 },
-    //                 _ => {},
-    //             }
-    //         },
-    //         Event::RedrawRequested(_) => {
-    //             let frame = match swap_chain.get_current_frame() {
-    //                 Ok(frame) => frame,
-    //                 Err(wgpu::SwapChainError::Lost) => {
-    //                     swap_chain = device.create_swap_chain(&surface, &swap_chain_descriptor);
-    //                     swap_chain.get_current_frame().unwrap()
-    //                 },
-    //                 Err(wgpu::SwapChainError::Outdated) => {
-    //                     swap_chain = device.create_swap_chain(&surface, &swap_chain_descriptor);
-    //                     swap_chain.get_current_frame().unwrap()
-    //                 },
-    //                 Err(_) => panic!("failed to get frame"),
-    //             };
+            if keyboard.is_key_pressed(VirtualKeyCode::F1) {
+                window.set_fullscreen(Some(winit::window::Fullscreen::Borderless(None)));
+            }
 
-    //             let command_encoder_descriptor = wgpu::CommandEncoderDescriptor {
-    //                 label: Some("Render Encoder"),
-    //             };
-    //             let mut encoder = device.create_command_encoder(&command_encoder_descriptor);
-    //             {
-    //                 let render_pass_descriptor = wgpu::RenderPassDescriptor {
-    //                     label: Some("Render Pass"),
-    //                     color_attachments: &[
-    //                         wgpu::RenderPassColorAttachment {
-    //                             view: &frame.output.view,
-    //                             resolve_target: None,
-    //                             ops: wgpu::Operations {
-    //                                 load: wgpu::LoadOp::Clear(wgpu::Color {
-    //                                     r: 0.1,
-    //                                     g: 0.2,
-    //                                     b: 0.3,
-    //                                     a: 1.0,
-    //                                 }),
-    //                                 store: true,
-    //                             }
-    //                         }
-    //                     ],
-    //                     depth_stencil_attachment: None,
-    //                 };
-    //                 let mut render_pass = encoder.begin_render_pass(&render_pass_descriptor);
+            if keyboard.is_key_pressed(VirtualKeyCode::F2) {
+                window.set_fullscreen(None);
+            }
+        };
 
-    //                 render_pass.set_pipeline(&render_pipeline);
-    //                 render_pass.draw(0..3, 0..1);
-    //             }
+        match event {
+            Event::WindowEvent { ref event, window_id } => {
+                if window_id != window.id() {
+                    return;
+                }
 
-    //             let command_buffer = encoder.finish();
-    //             queue.submit(std::iter::once(command_buffer));
-    //         },
-    //         Event::MainEventsCleared => {
-    //             // RedrawRequested will only trigger once, unless we manually
-    //             // request it.
-    //             window.request_redraw();
-    //         },
-    //         _ => {},
-    //     }
-    // });
+                match event {
+                    WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                    WindowEvent::KeyboardInput { input, .. } => {
+                        keyboard.handle_input(input);
+                    },
+                    WindowEvent::Resized(physical_size) => {
+                        let size = *physical_size;
+                        swap_chain_descriptor.width = size.width;
+                        swap_chain_descriptor.height = size.height;
+                        swap_chain = device.create_swap_chain(&surface, &swap_chain_descriptor);
+                    },
+                    WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
+                        let size = **new_inner_size;
+                        swap_chain_descriptor.width = size.width;
+                        swap_chain_descriptor.height = size.height;
+                        swap_chain = device.create_swap_chain(&surface, &swap_chain_descriptor);
+                    },
+                    _ => {},
+                }
+            },
+            Event::RedrawRequested(_) => {
+                let frame = match swap_chain.get_current_frame() {
+                    Ok(frame) => frame,
+                    Err(wgpu::SwapChainError::Lost) => {
+                        swap_chain = device.create_swap_chain(&surface, &swap_chain_descriptor);
+                        swap_chain.get_current_frame().unwrap()
+                    },
+                    Err(wgpu::SwapChainError::Outdated) => {
+                        swap_chain = device.create_swap_chain(&surface, &swap_chain_descriptor);
+                        swap_chain.get_current_frame().unwrap()
+                    },
+                    Err(_) => panic!("failed to get frame"),
+                };
 
-    Ok(())
+                let command_encoder_descriptor = wgpu::CommandEncoderDescriptor {
+                    label: Some("Render Encoder"),
+                };
+                let mut encoder = device.create_command_encoder(&command_encoder_descriptor);
+                {
+                    let render_pass_descriptor = wgpu::RenderPassDescriptor {
+                        label: Some("Render Pass"),
+                        color_attachments: &[
+                            wgpu::RenderPassColorAttachment {
+                                view: &frame.output.view,
+                                resolve_target: None,
+                                ops: wgpu::Operations {
+                                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                                        r: 0.1,
+                                        g: 0.2,
+                                        b: 0.3,
+                                        a: 1.0,
+                                    }),
+                                    store: true,
+                                }
+                            }
+                        ],
+                        depth_stencil_attachment: None,
+                    };
+                    let mut render_pass = encoder.begin_render_pass(&render_pass_descriptor);
+
+                    render_pass.set_pipeline(&render_pipeline);
+                    render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
+                    render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+                    render_pass.draw_indexed(0..num_indices, 0, 0..1);
+                }
+
+                let command_buffer = encoder.finish();
+                queue.submit(std::iter::once(command_buffer));
+            },
+            Event::MainEventsCleared => {
+                update();
+                window.request_redraw();
+            },
+            _ => {},
+        }
+    });
 }

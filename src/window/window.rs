@@ -6,7 +6,7 @@ use winit::event::{Event, WindowEvent};
 use winit::monitor::MonitorHandle;
 
 use crate::{
-    ecs::REGISTRY,
+    ecs::SystemsRegistry,
     systems::Keyboard,
     window::{WindowConfiguration, WindowModes},
 };
@@ -50,6 +50,7 @@ impl Window {
 
     pub fn run(self) {
         let window = self.handle;
+
         self.event_loop.run(move |event, _, control_flow| {
             if let Event::WindowEvent { ref event, window_id } = event {
                 if window.id() != window_id {
@@ -62,28 +63,39 @@ impl Window {
                 }
 
                 if let WindowEvent::Resized(physical_size) = event {
-                    // renderer.resize(*physical_size);
+                    // let mut systems = REGISTRY.systems.borrow_mut();
+                    // if let Some(renderer) = systems.get_system_mut::<Renderer>() {
+                    //     renderer.resize(*physical_size);
+                    // }
                 }
 
                 if let WindowEvent::ScaleFactorChanged { new_inner_size, .. } = event {
-                    // renderer.resize(**new_inner_size);
+                    // let mut systems = REGISTRY.systems.borrow_mut();
+                    // if let Some(renderer) = systems.get_system_mut::<Renderer>() {
+                    //     renderer.resize(**new_inner_size);
+                    // }
                 }
 
                 if let WindowEvent::KeyboardInput { input, .. } = event {
-                    let mut systems = REGISTRY.systems.borrow_mut();
-                    if let Some(keyboard) = systems.get_system_mut::<Keyboard>() {
-                        keyboard.handle_input(input);
-                    }
+                    // let mut systems = systems.borrow_mut();
+                    // if let Some(keyboard) = systems.get_system_mut::<Keyboard>() {
+                    //     keyboard.handle_input(input);
+                    // }
                 }
             }
 
             if let Event::RedrawRequested(_) = event {
-                // let mut systems = REGISTRY.systems.borrow_mut();
-                // for system in systems.systems {
-                //     system.update(0);
+                // fps limit!?
+
+                // let mut reg = systems.borrow_mut();
+                // let mut systems = systems.get_systems_mut();
+                // for (_, system) in systems.iter_mut() {
+                //     system.update(&mut systems, 0);
                 // }
                 
-                // renderer.draw();
+                // if let Some(renderer) = systems.get_system_mut::<Renderer>() {
+                //     renderer.draw();
+                // }
             }
 
             if let Event::MainEventsCleared = event {

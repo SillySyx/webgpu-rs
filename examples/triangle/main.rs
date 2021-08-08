@@ -1,10 +1,12 @@
+use std::error::Error;
+use webgpu::inputs::Keyboard;
 use winit::dpi::PhysicalSize;
 use winit::window::WindowBuilder;
 use winit::event_loop::{EventLoop, ControlFlow};
-use winit::event::{Event, WindowEvent, KeyboardInput, ElementState, VirtualKeyCode};
+use winit::event::{Event, WindowEvent, VirtualKeyCode};
 
 #[async_std::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn Error>> {
     let event_loop = EventLoop::new();
 
     let window = match WindowBuilder::new()
@@ -14,6 +16,7 @@ async fn main() {
         Ok(window) => window,
         Err(_) => panic!("No window created!"),
     };
+    let mut keyboard = Keyboard::new();
 
     let instance = wgpu::Instance::new(wgpu::BackendBit::PRIMARY);
     let surface = unsafe { instance.create_surface(&window) };
@@ -62,10 +65,10 @@ async fn main() {
     };
     let render_pipeline_layout = device.create_pipeline_layout(&pipeline_layout_descriptor);
 
-    let fragment_state = wgpu::FragmentState { // 3.
+    let fragment_state = wgpu::FragmentState {
         module: &shader_module,
         entry_point: "main",
-        targets: &[wgpu::ColorTargetState { // 4.
+        targets: &[wgpu::ColorTargetState {
             format: swap_chain_descriptor.format,
             blend: Some(wgpu::BlendState::REPLACE),
             write_mask: wgpu::ColorWrite::ALL,
@@ -77,32 +80,43 @@ async fn main() {
         layout: Some(&render_pipeline_layout),
         vertex: wgpu::VertexState {
             module: &shader_module,
-            entry_point: "main", // 1.
-            buffers: &[], // 2.
+            entry_point: "main", 
+            buffers: &[], 
         },
         fragment: Some(fragment_state),
         primitive: wgpu::PrimitiveState {
-            topology: wgpu::PrimitiveTopology::TriangleList, // 1.
+            topology: wgpu::PrimitiveTopology::TriangleList, 
             strip_index_format: None,
-            front_face: wgpu::FrontFace::Ccw, // 2.
+            front_face: wgpu::FrontFace::Ccw, 
             cull_mode: Some(wgpu::Face::Back),
-            // Setting this to anything other than Fill requires Features::NON_FILL_POLYGON_MODE
             polygon_mode: wgpu::PolygonMode::Fill,
-            // Requires Features::DEPTH_CLAMPING
             clamp_depth: false,
-            // Requires Features::CONSERVATIVE_RASTERIZATION
             conservative: false,
         },
-        depth_stencil: None, // 1.
+        depth_stencil: None, 
         multisample: wgpu::MultisampleState {
-            count: 1, // 2.
-            mask: !0, // 3.
-            alpha_to_coverage_enabled: false, // 4.
+            count: 1, 
+            mask: !0,
+            alpha_to_coverage_enabled: false,
         },
     };
     let render_pipeline = device.create_render_pipeline(&render_pipeline_descriptor);
 
     event_loop.run(move |event, _, control_flow| {
+        let mut update = || {
+            if keyboard.is_key_pressed(VirtualKeyCode::Escape) {
+                *control_flow = ControlFlow::Exit;
+            }
+
+            if keyboard.is_key_pressed(VirtualKeyCode::F1) {
+                window.set_fullscreen(Some(winit::window::Fullscreen::Borderless(None)));
+            }
+
+            if keyboard.is_key_pressed(VirtualKeyCode::F2) {
+                window.set_fullscreen(None);
+            }
+        };
+
         match event {
             Event::WindowEvent { ref event, window_id } => {
                 if window_id != window.id() {
@@ -112,16 +126,7 @@ async fn main() {
                 match event {
                     WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
                     WindowEvent::KeyboardInput { input, .. } => {
-                        match input {
-                            KeyboardInput { state: ElementState::Pressed, virtual_keycode: Some(VirtualKeyCode::Escape), .. } => *control_flow = ControlFlow::Exit,
-                            KeyboardInput { state: ElementState::Pressed, virtual_keycode: Some(VirtualKeyCode::F1), .. } => {
-                                window.set_fullscreen(Some(winit::window::Fullscreen::Borderless(None)));
-                            }
-                            KeyboardInput { state: ElementState::Pressed, virtual_keycode: Some(VirtualKeyCode::F2), .. } => {
-                                window.set_fullscreen(None);
-                            }
-                            _ => {}
-                        }
+                        keyboard.handle_input(input);
                     },
                     WindowEvent::Resized(physical_size) => {
                         let size = *physical_size;
@@ -187,8 +192,7 @@ async fn main() {
                 queue.submit(std::iter::once(command_buffer));
             },
             Event::MainEventsCleared => {
-                // RedrawRequested will only trigger once, unless we manually
-                // request it.
+                update();
                 window.request_redraw();
             },
             _ => {},
