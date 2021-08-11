@@ -30,8 +30,8 @@ impl FaceIndices {
 
         VertexRaw {
             position: [position.x, position.y, position.z],
-            normals: [normal.x, normal.y, normal.z],
             uvs: [uv.x, uv.y],
+            normals: [normal.x, normal.y, normal.z],
         }
     }
 }
@@ -68,9 +68,11 @@ impl Instance {
         let scale_matrix = cgmath::Matrix4::from_nonuniform_scale(self.scale.x, self.scale.y, self.scale.z);
 
         let model_matrix = position_matrix * rotation_matrix * scale_matrix;
+        let normal_matrix = cgmath::Matrix3::from_angle_x(cgmath::Deg(self.rotation.x)) * cgmath::Matrix3::from_angle_y(cgmath::Deg(self.rotation.y)) * cgmath::Matrix3::from_angle_z(cgmath::Deg(self.rotation.z));
 
         InstanceRaw {
             model_matrix: model_matrix.into(),
+            normal_matrix: normal_matrix.into(),
             ambient_color: self.material.ambient.into(),
             diffuse_color: self.material.diffuse.into(),
             specular_color: self.material.specular.into(),
@@ -127,6 +129,7 @@ impl VertexBufferLayout for VertexRaw {
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct InstanceRaw {
     pub model_matrix: [[f32; 4]; 4],
+    pub normal_matrix: [[f32; 3]; 3],
     pub ambient_color: [f32; 3],
     pub diffuse_color: [f32; 3],
     pub specular_color: [f32; 3],
@@ -171,6 +174,21 @@ impl VertexBufferLayout for InstanceRaw {
                 wgpu::VertexAttribute {
                     offset: std::mem::size_of::<[f32; 22]>() as wgpu::BufferAddress,
                     shader_location: 9,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                wgpu::VertexAttribute {
+                    offset: std::mem::size_of::<[f32; 25]>() as wgpu::BufferAddress,
+                    shader_location: 10,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                wgpu::VertexAttribute {
+                    offset: std::mem::size_of::<[f32; 28]>() as wgpu::BufferAddress,
+                    shader_location: 11,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                wgpu::VertexAttribute {
+                    offset: std::mem::size_of::<[f32; 31]>() as wgpu::BufferAddress,
+                    shader_location: 12,
                     format: wgpu::VertexFormat::Float32x3,
                 },
             ],

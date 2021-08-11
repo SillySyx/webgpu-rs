@@ -22,6 +22,14 @@ struct Uniforms {
     projection_matrix: [[f32; 4]; 4],
 }
 
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+struct Light {
+    position: [f32; 3],
+    _padding: u32, // Due to uniforms requiring 16 byte (4 float) spacing, we need to use a padding field here
+    color: [f32; 3],
+}
+
 #[async_std::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
@@ -58,9 +66,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
     let shader_module = device.create_shader_module(&shader_module_descriptor);
 
-    let material = model::parse_wavefront_material(include_str!("untitled.mtl").to_string())?;
-    let (mut model, verticies, indices) = model::parse_wavefront_object(include_str!("untitled.obj").to_string())?;
+    let mut material = model::parse_wavefront_material(include_str!("untitled.mtl").to_string())?;
+    let (mut model, verticies, indices) = model::parse_wavefront_object(include_str!("cube.obj").to_string())?;
 
+    material.diffuse = cgmath::vec3(1.0, 0.0, 0.0);
     model.instances.push(Instance {
         position: cgmath::vec3(0.0, 0.0, 0.0),
         rotation: cgmath::vec3(0.0, 0.0, 0.0),
@@ -68,22 +77,25 @@ async fn main() -> Result<(), Box<dyn Error>> {
         material: material.clone(),
     });
 
+    material.diffuse = cgmath::vec3(0.0, 1.0, 0.0);
     model.instances.push(Instance {
-        position: cgmath::vec3(-5.0, 0.0, 5.0),
+        position: cgmath::vec3(-5.0, 0.0, -5.0),
         rotation: cgmath::vec3(0.0, 90.0, 0.0),
         scale: cgmath::vec3(1.0, 1.0, 1.0),
         material: material.clone(),
     });
 
+    material.diffuse = cgmath::vec3(0.0, 0.0, 1.0);
     model.instances.push(Instance {
-        position: cgmath::vec3(0.0, 0.0, 5.0),
+        position: cgmath::vec3(0.0, 0.0, -5.0),
         rotation: cgmath::vec3(0.0, 180.0, 0.0),
         scale: cgmath::vec3(1.0, 1.0, 1.0),
         material: material.clone(),
     });
 
+    material.diffuse = cgmath::vec3(1.0, 0.0, 1.0);
     model.instances.push(Instance {
-        position: cgmath::vec3(5.0, 0.0, 5.0),
+        position: cgmath::vec3(5.0, 0.0, -5.0),
         rotation: cgmath::vec3(0.0, 270.0, 0.0),
         scale: cgmath::vec3(1.0, 1.0, 1.0),
         material: material.clone(),
@@ -105,8 +117,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
     let index_buffer = device.create_buffer_init(&index_buffer_descriptor);
 
-    let eye = cgmath::Point3::<f32>::new(0.0, 2.0, 10.0);
-    let target = cgmath::Point3::<f32>::new(0.0, 0.0, 0.0);
+    let eye = cgmath::Point3::<f32>::new(0.0, 10.0, 5.0);
+    let target = cgmath::Point3::<f32>::new(0.0, 0.0, -3.0);
     let up = cgmath::Vector3::unit_y();
     let view_matrix = cgmath::Matrix4::look_at_rh(eye, target, up);
 
@@ -157,6 +169,42 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
     let uniform_bind_group = device.create_bind_group(&uniform_bind_group_descriptor);
 
+    let light = Light {
+        position: [0.0, 5.0, -2.5],
+        _padding: 0,
+        color: [1.0, 1.0, 1.0],
+    };
+    let light_buffer = device.create_buffer_init(
+        &wgpu::util::BufferInitDescriptor {
+            label: Some("Light VB"),
+            contents: bytemuck::cast_slice(&[light]),
+            usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
+        }
+    );
+
+    let light_bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        entries: &[wgpu::BindGroupLayoutEntry {
+            binding: 0,
+            visibility: wgpu::ShaderStage::VERTEX | wgpu::ShaderStage::FRAGMENT,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Uniform,
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        }],
+        label: None,
+    });
+
+    let light_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        layout: &light_bind_group_layout,
+        entries: &[wgpu::BindGroupEntry {
+            binding: 0,
+            resource: light_buffer.as_entire_binding(),
+        }],
+        label: None,
+    });
+
 
     let instances: Vec<InstanceRaw> = model.instances.iter().map(|instance| instance.to_instance_raw()).collect();
     let instance_buffer_descriptor = wgpu::util::BufferInitDescriptor {
@@ -170,6 +218,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         label: Some("Render Pipeline Layout"),
         bind_group_layouts: &[
             &uniform_bind_group_layout,
+            &light_bind_group_layout,
         ],
         push_constant_ranges: &[],
     };
@@ -339,9 +388,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
                     render_pass.set_pipeline(&render_pipeline);
                     render_pass.set_bind_group(0, &uniform_bind_group, &[]);
+                    render_pass.set_bind_group(1, &light_bind_group, &[]);
                     render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
                     render_pass.set_vertex_buffer(1, instance_buffer.slice(..));
-                    render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+                    render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
                     for mesh in &model.meshes {
                         render_pass.draw_indexed(mesh.offset..mesh.len, 0, 0..num_instances);
@@ -377,8 +427,9 @@ async fn create_surface_and_adapter(window: &winit::window::Window) -> Result<(w
 }
 
 async fn create_device_and_queue(adapter: &wgpu::Adapter) -> Result<(wgpu::Device, wgpu::Queue), Box<dyn Error>> {
+    let features = wgpu::Features::NON_FILL_POLYGON_MODE;
     let device_descriptor = wgpu::DeviceDescriptor {
-        features: wgpu::Features::empty(),
+        features,
         limits: wgpu::Limits::default(),
         label: None,
     };

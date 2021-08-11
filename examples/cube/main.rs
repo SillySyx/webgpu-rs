@@ -181,10 +181,22 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let model_rotation4 = cgmath::Vector3::new(0.0, 90.0, 0.0);
 
     let instances = vec![
-        Instance { model_matrix: model_matrix_from_position_and_rotation(model_position1, model_rotation1).into(), color: [1.0, 0.0, 0.0] },
-        Instance { model_matrix: model_matrix_from_position_and_rotation(model_position2, model_rotation2).into(), color: [0.0, 1.0, 0.0] },
-        Instance { model_matrix: model_matrix_from_position_and_rotation(model_position3, model_rotation3).into(), color: [0.0, 0.0, 1.0] },
-        Instance { model_matrix: model_matrix_from_position_and_rotation(model_position4, model_rotation4).into(), color: [1.0, 0.0, 1.0] },
+        Instance { 
+            model_matrix: model_matrix_from_position_and_rotation(model_position1, model_rotation1).into(), 
+            color: [1.0, 0.0, 0.0],
+        },
+        Instance { 
+            model_matrix: model_matrix_from_position_and_rotation(model_position2, model_rotation2).into(), 
+            color: [0.0, 1.0, 0.0],
+        },
+        Instance { 
+            model_matrix: model_matrix_from_position_and_rotation(model_position3, model_rotation3).into(), 
+            color: [0.0, 0.0, 1.0],
+        },
+        Instance { 
+            model_matrix: model_matrix_from_position_and_rotation(model_position4, model_rotation4).into(), 
+            color: [1.0, 0.0, 1.0],
+        },
     ];
     let num_instances = instances.len() as u32;
 
@@ -222,7 +234,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 format: wgpu::VertexFormat::Float32x4,
             },
             wgpu::VertexAttribute {
-                offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
+                offset: std::mem::size_of::<[f32; 16]>() as wgpu::BufferAddress,
                 shader_location: 5,
                 format: wgpu::VertexFormat::Float32x3,
             },
