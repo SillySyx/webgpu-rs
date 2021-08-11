@@ -66,8 +66,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
     let shader_module = device.create_shader_module(&shader_module_descriptor);
 
-    let mut material = model::parse_wavefront_material(include_str!("untitled.mtl").to_string())?;
-    let (mut model, verticies, indices) = model::parse_wavefront_object(include_str!("untitled.obj").to_string())?;
+    let mut material = model::parse_wavefront_material(include_str!("model.mtl").to_string())?;
+    let (mut model, verticies, indices) = model::parse_wavefront_object(include_str!("model.obj").to_string())?;
 
     material.ambient = cgmath::vec3(1.0, 0.0, 0.0);
     material.diffuse = cgmath::vec3(1.0, 0.0, 0.0);

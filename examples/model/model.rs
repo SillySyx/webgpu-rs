@@ -214,7 +214,7 @@ pub fn parse_wavefront_object(data: String) -> Result<(Model, Vec<VertexRaw>, Ve
                 let offset = calc_mesh_offset(&meshes);
                 meshes.push(Mesh {
                     offset,
-                    len: indices_len - offset,
+                    len: indices_len,
                 });
             }
         }
@@ -253,7 +253,7 @@ pub fn parse_wavefront_object(data: String) -> Result<(Model, Vec<VertexRaw>, Ve
     let offset = calc_mesh_offset(&meshes);
     meshes.push(Mesh {
         offset,
-        len: indices.len() as u32 - offset,
+        len: indices.len() as u32,
     });
 
     Ok((
@@ -363,5 +363,8 @@ fn find_previous_index(indices: &Vec<u32>) -> u32 {
 }
 
 fn calc_mesh_offset(meshes: &Vec<Mesh>) -> u32 {
-    meshes.iter().fold(0u32, |offset, mesh| offset + mesh.offset + mesh.len)
+    match meshes.last() {
+        Some(mesh) => mesh.len,
+        None => 0
+    }
 }
