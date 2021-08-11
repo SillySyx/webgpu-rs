@@ -73,6 +73,14 @@ fn main(input: VertexOutput) -> [[location(0)]] vec4<f32> {
     let diffuse_strength = max(dot(input.normal, light_dir), 0.0);
     let diffuse_color = input.diffuse_color * diffuse_strength;
 
+    // let view_dir = normalize(uniforms.view_matrix.xyz - input.position);
+    // let reflect_dir = reflect(-light_dir, input.normal);
+
+    // let specular_strength = pow(max(dot(view_dir, reflect_dir), 0.0), 32.0);
+    // let specular_color = specular_strength * light.color;
+
+    // let color = ambient_color + diffuse_color + specular_color;
+
     let color = ambient_color + diffuse_color;
 
     return vec4<f32>(color, 1.0);
