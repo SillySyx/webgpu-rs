@@ -1,3 +1,5 @@
+mod model;
+
 use std::error::Error;
 use winit::{
     dpi::PhysicalSize, 
@@ -11,34 +13,22 @@ use webgpu::{
     inputs::Keyboard, 
 };
 
-#[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-struct Vertex {
-    position: [f32; 3],
-}
-
-#[repr(C)]
-#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-struct Instance {
-    model_matrix: [[f32; 4]; 4],
-    color: [f32; 3],
-}
+use crate::model::{VertexBufferLayout, VertexRaw, Instance, InstanceRaw};
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 struct Uniforms {
-    view: [[f32; 4]; 4],
-    projection: [[f32; 4]; 4],
+    view_matrix: [[f32; 4]; 4],
+    projection_matrix: [[f32; 4]; 4],
 }
 
 #[async_std::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
-
     let event_loop = EventLoop::new();
 
     let window = match WindowBuilder::new()
-        .with_title("Cube example")
+        .with_title("Model example")
         .with_inner_size(PhysicalSize::new(1980, 1080))
         .build(&event_loop) {
         Ok(window) => window,
@@ -68,57 +58,54 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
     let shader_module = device.create_shader_module(&shader_module_descriptor);
 
-    let verticies = vec![
-        Vertex { position: [ 1.0,  1.0, -1.0] },
-        Vertex { position: [ 1.0, -1.0, -1.0] },
-        Vertex { position: [ 1.0,  1.0,  1.0] },
-        Vertex { position: [ 1.0, -1.0,  1.0] },
-        Vertex { position: [-1.0,  1.0, -1.0] },
-        Vertex { position: [-1.0, -1.0, -1.0] },
-        Vertex { position: [-1.0,  1.0,  1.0] },
-        Vertex { position: [-1.0, -1.0,  1.0] },
-    ];
+    let material = model::parse_wavefront_material(include_str!("untitled.mtl").to_string())?;
+    let (mut model, verticies, indices) = model::parse_wavefront_object(include_str!("untitled.obj").to_string())?;
+
+    model.instances.push(Instance {
+        position: cgmath::vec3(0.0, 0.0, 0.0),
+        rotation: cgmath::vec3(0.0, 0.0, 0.0),
+        scale: cgmath::vec3(1.0, 1.0, 1.0),
+        material: material.clone(),
+    });
+
+    model.instances.push(Instance {
+        position: cgmath::vec3(-5.0, 0.0, 5.0),
+        rotation: cgmath::vec3(0.0, 90.0, 0.0),
+        scale: cgmath::vec3(1.0, 1.0, 1.0),
+        material: material.clone(),
+    });
+
+    model.instances.push(Instance {
+        position: cgmath::vec3(0.0, 0.0, 5.0),
+        rotation: cgmath::vec3(0.0, 180.0, 0.0),
+        scale: cgmath::vec3(1.0, 1.0, 1.0),
+        material: material.clone(),
+    });
+
+    model.instances.push(Instance {
+        position: cgmath::vec3(5.0, 0.0, 5.0),
+        rotation: cgmath::vec3(0.0, 270.0, 0.0),
+        scale: cgmath::vec3(1.0, 1.0, 1.0),
+        material: material.clone(),
+    });
+
+    let num_instances = model.instances.len() as u32;
+
     let vertex_buffer_descriptor = wgpu::util::BufferInitDescriptor {
-        label: Some("Vertex Buffer"),
+        label: Some("Model Vertex Buffer"),
         contents: bytemuck::cast_slice(&verticies),
         usage: wgpu::BufferUsage::VERTEX,
     };
     let vertex_buffer = device.create_buffer_init(&vertex_buffer_descriptor);
-    let vertex_buffer_layout = wgpu::VertexBufferLayout {
-        array_stride: std::mem::size_of::<Vertex>() as wgpu::BufferAddress, 
-        step_mode: wgpu::InputStepMode::Vertex, 
-        attributes: &[ 
-            wgpu::VertexAttribute {
-                offset: 0, 
-                shader_location: 0, 
-                format: wgpu::VertexFormat::Float32x3,
-            },
-        ],
-    };
 
-    let indices: Vec<u16> = vec![
-        4, 2, 0,
-        2, 7, 3,
-        6, 5, 7,
-        1, 7, 5,
-        0, 3, 1,
-        4, 1, 5,
-        4, 6, 2,
-        2, 6, 7,
-        6, 4, 5,
-        1, 3, 7,
-        0, 2, 3,
-        4, 0, 1,
-    ];
     let index_buffer_descriptor = wgpu::util::BufferInitDescriptor {
         label: Some("Index Buffer"),
         contents: bytemuck::cast_slice(&indices),
         usage: wgpu::BufferUsage::INDEX,
     };
     let index_buffer = device.create_buffer_init(&index_buffer_descriptor);
-    let num_indices = indices.len() as u32;
 
-    let eye = cgmath::Point3::<f32>::new(0.0, 2.0, 5.0);
+    let eye = cgmath::Point3::<f32>::new(0.0, 2.0, 10.0);
     let target = cgmath::Point3::<f32>::new(0.0, 0.0, 0.0);
     let up = cgmath::Vector3::unit_y();
     let view_matrix = cgmath::Matrix4::look_at_rh(eye, target, up);
@@ -130,8 +117,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let projection_matrix = cgmath::perspective(vertical_fov, aspect_ratio, near, far);
 
     let uniforms = Uniforms {
-        view: view_matrix.into(),
-        projection: projection_matrix.into(),
+        view_matrix: view_matrix.into(),
+        projection_matrix: projection_matrix.into(),
     };
     let uniform_data = vec![uniforms];
     let uniform_buffer_descriptor = wgpu::util::BufferInitDescriptor {
@@ -170,64 +157,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
     let uniform_bind_group = device.create_bind_group(&uniform_bind_group_descriptor);
 
-    let model_position1 = cgmath::Vector3::new(0.0, 0.0, 0.0);
-    let model_position2 = cgmath::Vector3::new(0.0, 0.0, -5.0);
-    let model_position3 = cgmath::Vector3::new(5.0, 0.0, -5.0);
-    let model_position4 = cgmath::Vector3::new(-5.0, 0.0, -5.0);
 
-    let model_rotation1 = cgmath::Vector3::new(0.0, 0.0, 0.0);
-    let model_rotation2 = cgmath::Vector3::new(0.0, 180.0, 0.0);
-    let model_rotation3 = cgmath::Vector3::new(0.0, -90.0, 0.0);
-    let model_rotation4 = cgmath::Vector3::new(0.0, 90.0, 0.0);
-
-    let instances = vec![
-        Instance { model_matrix: model_matrix_from_position_and_rotation(model_position1, model_rotation1).into(), color: [1.0, 0.0, 0.0] },
-        Instance { model_matrix: model_matrix_from_position_and_rotation(model_position2, model_rotation2).into(), color: [0.0, 1.0, 0.0] },
-        Instance { model_matrix: model_matrix_from_position_and_rotation(model_position3, model_rotation3).into(), color: [0.0, 0.0, 1.0] },
-        Instance { model_matrix: model_matrix_from_position_and_rotation(model_position4, model_rotation4).into(), color: [1.0, 0.0, 1.0] },
-    ];
-    let num_instances = instances.len() as u32;
-
+    let instances: Vec<InstanceRaw> = model.instances.iter().map(|instance| instance.to_instance_raw()).collect();
     let instance_buffer_descriptor = wgpu::util::BufferInitDescriptor {
-        label: Some("Instance Buffer"),
+        label: Some("Model instance Buffer"),
         contents: bytemuck::cast_slice(&instances),
         usage: wgpu::BufferUsage::VERTEX,
     };
     let instance_buffer = device.create_buffer_init(&instance_buffer_descriptor);
-    let instance_buffer_layout = wgpu::VertexBufferLayout {
-        array_stride: std::mem::size_of::<Instance>() as wgpu::BufferAddress,
-        step_mode: wgpu::InputStepMode::Instance,
-        attributes: &[
-            // A mat4 takes up 4 vertex slots as it is technically 4 vec4s. We need to define a slot
-            // for each vec4. We'll have to reassemble the mat4 in
-            // the shader.
-            wgpu::VertexAttribute {
-                offset: 0,
-                shader_location: 1,
-                format: wgpu::VertexFormat::Float32x4,
-            },
-            wgpu::VertexAttribute {
-                offset: std::mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
-                shader_location: 2,
-                format: wgpu::VertexFormat::Float32x4,
-            },
-            wgpu::VertexAttribute {
-                offset: std::mem::size_of::<[f32; 8]>() as wgpu::BufferAddress,
-                shader_location: 3,
-                format: wgpu::VertexFormat::Float32x4,
-            },
-            wgpu::VertexAttribute {
-                offset: std::mem::size_of::<[f32; 12]>() as wgpu::BufferAddress,
-                shader_location: 4,
-                format: wgpu::VertexFormat::Float32x4,
-            },
-            wgpu::VertexAttribute {
-                offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
-                shader_location: 5,
-                format: wgpu::VertexFormat::Float32x3,
-            },
-        ],
-    };
 
     let pipeline_layout_descriptor = wgpu::PipelineLayoutDescriptor {
         label: Some("Render Pipeline Layout"),
@@ -242,8 +179,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
         module: &shader_module,
         entry_point: "main",
         buffers: &[
-            vertex_buffer_layout,
-            instance_buffer_layout,
+            VertexRaw::buffer_layout(),
+            InstanceRaw::buffer_layout(),
         ],
     };
     let fragment_state = wgpu::FragmentState {
@@ -405,7 +342,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
                     render_pass.set_vertex_buffer(1, instance_buffer.slice(..));
                     render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-                    render_pass.draw_indexed(0..num_indices, 0, 0..num_instances);
+
+                    for mesh in &model.meshes {
+                        render_pass.draw_indexed(mesh.offset..mesh.len, 0, 0..num_instances);
+                    }
                 }
 
                 let command_buffer = encoder.finish();
@@ -449,11 +389,4 @@ async fn create_device_and_queue(adapter: &wgpu::Adapter) -> Result<(wgpu::Devic
     };
 
     Ok((device, queue))
-}
-
-fn model_matrix_from_position_and_rotation(position: cgmath::Vector3<f32>, rotation: cgmath::Vector3<f32>) -> cgmath::Matrix4<f32> {
-    let position_matrix = cgmath::Matrix4::from_translation(position);
-    let rotation_matrix = cgmath::Matrix4::from_angle_x(cgmath::Deg(rotation.x)) * cgmath::Matrix4::from_angle_y(cgmath::Deg(rotation.y)) * cgmath::Matrix4::from_angle_z(cgmath::Deg(rotation.z));
-
-    position_matrix * rotation_matrix
 }
