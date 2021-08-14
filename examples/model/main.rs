@@ -13,7 +13,7 @@ use webgpu::{
     inputs::Keyboard, 
 };
 
-use crate::model::{VertexBufferLayout, VertexRaw, Instance, InstanceRaw};
+use crate::model::wavefront::{VertexBufferLayout, VertexRaw, Instance, InstanceRaw};
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
@@ -66,14 +66,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
     let shader_module = device.create_shader_module(&shader_module_descriptor);
 
-    let mut material = model::parse_wavefront_material(include_str!("model.mtl").to_string())?;
-    let (mut model, verticies, indices) = model::parse_wavefront_object(include_str!("model.obj").to_string())?;
+    let mut material = model::wavefront::parse_wavefront_material(include_str!("model.mtl").to_string())?;
+    let (mut model, verticies, indices) = model::wavefront::parse_wavefront_object(include_str!("model.obj").to_string())?;
 
     material.ambient = cgmath::vec3(1.0, 0.0, 0.0);
     material.diffuse = cgmath::vec3(1.0, 0.0, 0.0);
     model.instances.push(Instance {
         position: cgmath::vec3(0.0, 0.0, 0.0),
-        rotation: cgmath::vec3(0.0, 0.0, 0.0),
+        rotation: cgmath::vec3(0.0, 90.0, 0.0),
         scale: cgmath::vec3(1.0, 1.0, 1.0),
         material: material.clone(),
     });
@@ -82,7 +82,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     material.diffuse = cgmath::vec3(0.0, 1.0, 0.0);
     model.instances.push(Instance {
         position: cgmath::vec3(-5.0, 0.0, -5.0),
-        rotation: cgmath::vec3(0.0, 90.0, 0.0),
+        rotation: cgmath::vec3(0.0, -45.0, 0.0),
         scale: cgmath::vec3(1.0, 1.0, 1.0),
         material: material.clone(),
     });
@@ -91,7 +91,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     material.diffuse = cgmath::vec3(0.0, 0.0, 1.0);
     model.instances.push(Instance {
         position: cgmath::vec3(0.0, 0.0, -5.0),
-        rotation: cgmath::vec3(0.0, 180.0, 0.0),
+        rotation: cgmath::vec3(0.0, 270.0, 0.0),
         scale: cgmath::vec3(1.0, 1.0, 1.0),
         material: material.clone(),
     });
@@ -100,7 +100,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     material.diffuse = cgmath::vec3(1.0, 0.0, 1.0);
     model.instances.push(Instance {
         position: cgmath::vec3(5.0, 0.0, -5.0),
-        rotation: cgmath::vec3(0.0, 270.0, 0.0),
+        rotation: cgmath::vec3(0.0, 45.0, 0.0),
         scale: cgmath::vec3(1.0, 1.0, 1.0),
         material: material.clone(),
     });
@@ -180,7 +180,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
     let light_buffer = device.create_buffer_init(
         &wgpu::util::BufferInitDescriptor {
-            label: Some("Light VB"),
+            label: Some("Light UB"),
             contents: bytemuck::cast_slice(&[light]),
             usage: wgpu::BufferUsage::UNIFORM | wgpu::BufferUsage::COPY_DST,
         }
@@ -364,21 +364,19 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 {
                     let render_pass_descriptor = wgpu::RenderPassDescriptor {
                         label: Some("Render Pass"),
-                        color_attachments: &[
-                            wgpu::RenderPassColorAttachment {
-                                view: &frame.output.view,
-                                resolve_target: None,
-                                ops: wgpu::Operations {
-                                    load: wgpu::LoadOp::Clear(wgpu::Color {
-                                        r: 0.1,
-                                        g: 0.2,
-                                        b: 0.3,
-                                        a: 1.0,
-                                    }),
-                                    store: true,
-                                }
-                            }
-                        ],
+                        color_attachments: &[wgpu::RenderPassColorAttachment {
+                            view: &frame.output.view,
+                            resolve_target: None,
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Clear(wgpu::Color {
+                                    r: 0.1,
+                                    g: 0.2,
+                                    b: 0.3,
+                                    a: 1.0,
+                                }),
+                                store: true,
+                            },
+                        }],
                         depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                             view: &depth_texture_view,
                             depth_ops: Some(wgpu::Operations {
@@ -388,6 +386,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                             stencil_ops: None,
                         }),
                     };
+                    
                     let mut render_pass = encoder.begin_render_pass(&render_pass_descriptor);
 
                     render_pass.set_pipeline(&render_pipeline);
