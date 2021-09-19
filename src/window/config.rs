@@ -10,6 +10,7 @@ pub struct WindowConfiguration {
     pub width: u32,
     pub height: u32,
     pub window_mode: WindowModes,
+    pub target_frame_time: Option<u64>,
 }
 
 impl WindowConfiguration {
@@ -27,5 +28,6 @@ fn default_window_configuration() -> WindowConfiguration {
         width: 1920,
         height: 1080,
         window_mode: WindowModes::Window,
+        target_frame_time: None,
     }
 }
